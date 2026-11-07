@@ -6,6 +6,8 @@ edition = "2024"
 [dependencies]
 axum = "0.8.9"
 fs = "0.0.6"
+header = "0.0.0"
 rusqlite = "0.41.1"
 serde = { version = "1.0.229", features = ["derive"] }
 tokio = { version = "1.54.1", features = ["full"] }
+tower-http = { version = "0.6.2", features = ["full"] }

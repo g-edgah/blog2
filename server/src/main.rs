@@ -1,12 +1,15 @@
 use axum::{
-    // http::StatusCode,
     Json,
     Router,
+    //http::StatusCode,
     response::IntoResponse,
-    routing::get,
+    routing::{get, post},
 };
 use rusqlite::Connection;
 use std::fs;
+use tokio::net::TcpListener;
+use tower_http::cors::CorsLayer;
+use tower_http::services::ServeDir;
 
 #[tokio::main]
 async fn main() {
@@ -24,9 +27,13 @@ async fn main() {
         con.execute(sql, []).unwrap();
     }
 
-    let app = Router::new().route("/get_posts", get(get_posts));
+    let app: Router = Router::new()
+        .nest_service("/images", ServeDir::new("images"))
+        .route("/get_posts", get(get_posts))
+        .route("/create_post", post(create_post))
+        .layer(CorsLayer::permissive());
 
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:8080")
+    let listener: TcpListener = tokio::net::TcpListener::bind("127.0.0.1:8080")
         .await
         .unwrap();
 
@@ -66,6 +73,43 @@ async fn get_posts() -> impl IntoResponse {
     println!("after for statement");
 
     Json(posts)
+}
+
+async fn create_post(title: String, body: String) -> impl IntoResponse {
+    println!("{} {}", title, body);
+    println!("app started");
+    let con = rusqlite::Connection::open("./data.db3").unwrap();
+
+    let sql = r#"
+            INSERT INTO posts (
+                user_id,
+                title,
+                body,
+                time_created
+            )
+            VALUES (
+                1,
+                ?1,
+                ?2,
+                CURRENT_TIMESTAMP
+            )
+        "#;
+
+    con.execute(sql, [&title, &body]).unwrap();
+
+    // let sql = r#"
+    //     CREATE TABLE IF NOT EXISTS posts (
+    //         id              INTEGER PRIMARY KEY,
+    //         user_id         INTEGER NOT NULL,
+    //         title           TEXT,
+    //         body            TEXT,
+    //         time_created    TIMESTAMP
+    //     )
+    // "#;
+
+    // con.execute(sql, ()).unwrap();
+
+    Ok(())
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Deserialize, serde::Serialize)]

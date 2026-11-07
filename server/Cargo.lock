@@ -116,6 +116,7 @@ dependencies = [
  "serde",
  "tokio",
  "tower-http",
+ "uuid",
 ]
 
 [[package]]

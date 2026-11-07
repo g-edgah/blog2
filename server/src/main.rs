@@ -1,7 +1,6 @@
 use axum::{
-    Json,
-    Router,
-    //http::StatusCode,
+    Json, Router,
+    http::StatusCode,
     response::IntoResponse,
     routing::{get, post},
 };
@@ -46,7 +45,7 @@ async fn get_posts() -> impl IntoResponse {
     println!("getting posts");
 
     let mut stm = con
-        .prepare("SELECT id, title, body, time_created FROM posts ORDER BY id DESC")
+        .prepare("SELECT id, title, body, image_file, time_created FROM posts ORDER BY id DESC")
         .unwrap();
 
     let rows = stm
@@ -55,7 +54,8 @@ async fn get_posts() -> impl IntoResponse {
                 id: row.get(0).unwrap(),
                 title: row.get(1).unwrap(),
                 body: row.get(2).unwrap(),
-                time_created: row.get(3).unwrap(),
+                image_file: row.get(3).unwrap(),
+                time_created: row.get(4).unwrap(),
             })
         })
         .unwrap();
@@ -75,41 +75,54 @@ async fn get_posts() -> impl IntoResponse {
     Json(posts)
 }
 
-async fn create_post(title: String, body: String) -> impl IntoResponse {
-    println!("{} {}", title, body);
-    println!("app started");
-    let con = rusqlite::Connection::open("./data.db3").unwrap();
+async fn create_post(Json(post): Json<PostEntry>) -> impl IntoResponse {
+    println!("boom");
+    println!("{}", post.title);
 
-    let sql = r#"
+    let con: Connection = Connection::open("./data.db3").unwrap();
+
+    if let Some(image_data) = post.image_data {
+        let image_id: uuid::Uuid = uuid::Uuid::new_v4();
+
+        let file_name: String = format!("{}.png", image_id);
+
+        let file_path: String = format!("./images/{}.png", image_id);
+
+        std::fs::write(&file_path, image_data).unwrap();
+
+        let sql = "
             INSERT INTO posts (
-                user_id,
+                title,
+                body,
+                image_file,
+                time_created
+            )
+            VALUES (
+                ?1,
+                ?2,
+                ?3,
+                DATE('now')
+        )";
+
+        con.execute(sql, [&post.title, &post.body, &file_name])
+            .unwrap();
+    } else {
+        let sql = "
+            INSERT INTO posts (
                 title,
                 body,
                 time_created
             )
             VALUES (
-                1,
                 ?1,
                 ?2,
-                CURRENT_TIMESTAMP
-            )
-        "#;
+                DATE('now')
+        )";
 
-    con.execute(sql, [&title, &body]).unwrap();
+        con.execute(sql, [&post.title, &post.body]).unwrap();
+    }
 
-    // let sql = r#"
-    //     CREATE TABLE IF NOT EXISTS posts (
-    //         id              INTEGER PRIMARY KEY,
-    //         user_id         INTEGER NOT NULL,
-    //         title           TEXT,
-    //         body            TEXT,
-    //         time_created    TIMESTAMP
-    //     )
-    // "#;
-
-    // con.execute(sql, ()).unwrap();
-
-    Ok(())
+    StatusCode::OK
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Deserialize, serde::Serialize)]
@@ -117,5 +130,13 @@ pub struct Post {
     id: u32,
     title: String,
     body: String,
+    image_file: Option<String>,
     time_created: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Deserialize, serde::Serialize)]
+pub struct PostEntry {
+    title: String,
+    body: String,
+    image_data: Option<Vec<u8>>,
 }
